@@ -119,6 +119,9 @@ export const checkoutService = {
     if (session.status === 'completed') {
       return { orderId: session.shopifyOrderId, shopifyOrderId: session.shopifyOrderId, status: 'completed' };
     }
+    if (session.status === 'cancelled') {
+      throw new ConflictError('Cannot complete a cancelled session');
+    }
     await ensureInventory(session.items);
     // eslint-disable-next-line no-console
     console.log(`[complete_checkout] Attempting to capture PayPal order: ${body.sharedPaymentToken.token}`);
@@ -139,6 +142,13 @@ export const checkoutService = {
   async cancel(_req: Request, body: any) {
     const session = checkoutStore.get(body.sessionId);
     if (!session) throw new BadRequestError('Invalid sessionId');
+    if (session.status === 'completed') {
+      throw new ConflictError('Cannot cancel a completed session');
+    }
+    if (session.status === 'cancelled') {
+      // Idempotent: already cancelled, return success
+      return { sessionId: session.id, status: 'cancelled' };
+    }
     if (session.shopifyOrderId) await cancelOrder(session.shopifyOrderId);
     session.status = 'cancelled';
     checkoutStore.set(session);

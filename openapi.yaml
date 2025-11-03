@@ -1,0 +1,409 @@
+openapi: 3.0.3
+info:
+  title: ACP Backend API
+  description: |
+    Agentic Commerce Protocol (ACP) Backend for OpenAI ChatGPT Merchants Integration.
+    
+    This API handles checkout sessions, payment processing, and order management.
+  version: 1.0.0
+  contact:
+    name: API Support
+servers:
+  - url: https://your-backend-url.com
+    description: Production server
+  - url: http://localhost:8080
+    description: Development server
+
+tags:
+  - name: Checkout
+    description: Checkout session management
+  - name: Health
+    description: Health and monitoring
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the health status of the API
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /create_checkout:
+    post:
+      tags:
+        - Checkout
+      summary: Create a new checkout session
+      description: |
+        Creates a new checkout session with items, calculates totals, and validates inventory.
+        Returns session details including pricing and shipping options.
+      operationId: createCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutRequest'
+      headers:
+        Idempotency-Key:
+          description: Unique key for idempotent requests
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Checkout session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSession'
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: SKU not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflict - item out of stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /update_checkout:
+    post:
+      tags:
+        - Checkout
+      summary: Update an existing checkout session
+      description: |
+        Updates checkout session details such as shipping address, shipping option, or items.
+        Recalculates totals based on changes.
+      operationId: updateCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCheckoutRequest'
+      headers:
+        Idempotency-Key:
+          description: Unique key for idempotent requests
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Checkout session updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSession'
+        '400':
+          description: Bad request - invalid session ID or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflict - session cannot be updated or item out of stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /complete_checkout:
+    post:
+      tags:
+        - Checkout
+      summary: Complete a checkout session
+      description: |
+        Completes the checkout by capturing the payment and creating the Shopify order.
+        Requires a PayPal order token from OpenAI.
+      operationId: completeCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteCheckoutRequest'
+      headers:
+        Idempotency-Key:
+          description: Unique key for idempotent requests
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Checkout completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompleteCheckoutResponse'
+        '400':
+          description: Bad request - invalid session ID or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflict - session cancelled or cannot be completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Upstream error - PayPal capture failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cancel_checkout:
+    post:
+      tags:
+        - Checkout
+      summary: Cancel a checkout session
+      description: |
+        Cancels an active checkout session. Can be called at any stage before completion.
+      operationId: cancelCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelCheckoutRequest'
+      headers:
+        Idempotency-Key:
+          description: Unique key for idempotent requests
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Checkout cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelCheckoutResponse'
+        '400':
+          description: Bad request - invalid session ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflict - session already completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    CreateCheckoutRequest:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CheckoutItem'
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        email:
+          type: string
+          format: email
+
+    UpdateCheckoutRequest:
+      type: object
+      required:
+        - sessionId
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckoutItem'
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        shippingOption:
+          type: string
+          enum: [standard, express]
+
+    CompleteCheckoutRequest:
+      type: object
+      required:
+        - sessionId
+        - email
+        - sharedPaymentToken
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        sharedPaymentToken:
+          $ref: '#/components/schemas/SharedPaymentToken'
+
+    CancelCheckoutRequest:
+      type: object
+      required:
+        - sessionId
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+
+    CheckoutItem:
+      type: object
+      required:
+        - quantity
+      properties:
+        sku:
+          type: string
+        productId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+
+    Address:
+      type: object
+      required:
+        - line1
+        - city
+        - postalCode
+        - country
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: ISO 3166-1 alpha-2 country code
+
+    SharedPaymentToken:
+      type: object
+      required:
+        - provider
+        - token
+      properties:
+        provider:
+          type: string
+          enum: [paypal]
+        token:
+          type: string
+          minLength: 3
+          description: PayPal Order ID
+
+    CheckoutSession:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          example: USD
+        subtotal:
+          type: integer
+          description: Amount in cents
+        shipping:
+          type: integer
+          description: Amount in cents
+        tax:
+          type: integer
+          description: Amount in cents
+        total:
+          type: integer
+          description: Amount in cents
+        shippingOptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShippingOption'
+        status:
+          type: string
+          enum: [awaiting_payment, completed, cancelled]
+
+    ShippingOption:
+      type: object
+      properties:
+        id:
+          type: string
+          enum: [standard, express]
+        label:
+          type: string
+        amount:
+          type: integer
+          description: Amount in cents
+
+    CompleteCheckoutResponse:
+      type: object
+      properties:
+        orderId:
+          type: integer
+          description: Shopify order ID
+        shopifyOrderId:
+          type: integer
+          description: Shopify order ID (same as orderId)
+        status:
+          type: string
+          enum: [completed]
+
+    CancelCheckoutResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [cancelled]
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          enum: [bad_request, not_found, conflict, upstream_error, internal_error]
+        message:
+          type: string
+        details:
+          type: object
+          description: Additional error details
+        requestId:
+          type: string
+          format: uuid
+          description: Request ID for tracking
+
