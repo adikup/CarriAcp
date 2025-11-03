@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { validate } from '../utils/validators.js';
 import { checkoutService } from '../services/checkout.js';
 import { idempotencyMiddleware } from '../middleware/security.js';
+import { checkoutStore } from '../storage/checkoutStore.js';
 
 export const router = Router();
 
@@ -79,6 +80,12 @@ router.post('/cancel_checkout', idempotencyMiddleware('cancel_checkout'), valida
   } catch (err) {
     next(err);
   }
+});
+
+// Debug endpoint - list all active sessions (development only)
+router.get('/debug/sessions', (_req, res) => {
+  const sessions = checkoutStore.listAll();
+  res.json({ count: sessions.length, sessions });
 });
 
 

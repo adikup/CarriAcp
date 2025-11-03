@@ -109,11 +109,19 @@ export const checkoutService = {
 
   async complete(_req: Request, body: any) {
     const session = checkoutStore.get(body.sessionId);
-    if (!session) throw new BadRequestError('Invalid sessionId');
+    if (!session) {
+      // eslint-disable-next-line no-console
+      console.error(`[complete_checkout] Session not found: ${body.sessionId}`);
+      // eslint-disable-next-line no-console
+      console.error(`[complete_checkout] Active sessions: ${checkoutStore.listAll().map(s => s.id).join(', ') || 'none'}`);
+      throw new BadRequestError('Invalid sessionId');
+    }
     if (session.status === 'completed') {
       return { orderId: session.shopifyOrderId, shopifyOrderId: session.shopifyOrderId, status: 'completed' };
     }
     await ensureInventory(session.items);
+    // eslint-disable-next-line no-console
+    console.log(`[complete_checkout] Attempting to capture PayPal order: ${body.sharedPaymentToken.token}`);
     const capture = await captureWithSharedToken(body.sharedPaymentToken.token);
     const paid = capture?.status === 'COMPLETED';
     const order = await createOrder({

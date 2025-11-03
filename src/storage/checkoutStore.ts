@@ -55,6 +55,14 @@ export const checkoutStore = {
   set(session: CheckoutSession) {
     sessions.set(session.id, session);
     return session;
+  },
+  // Debug helper - list all sessions (only in development)
+  listAll(): Array<{ id: string; status: string; total?: number }> {
+    return Array.from(sessions.values()).map(s => ({
+      id: s.id,
+      status: s.status,
+      total: s.total
+    }));
   }
 };
 
