@@ -8,7 +8,7 @@ import { rateLimiter } from './middleware/security.js';
 const app = express();
 
 app.use(express.json({ limit: '1mb' }));
-app.use(pinoHttp({
+app.use((pinoHttp as typeof pinoHttp.default || pinoHttp)({
   level: process.env.LOG_LEVEL || 'info',
   redact: {
     paths: ['req.headers.authorization', 'req.body.sharedPaymentToken', 'res.body.sharedPaymentToken'],
