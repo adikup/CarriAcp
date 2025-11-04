@@ -77,7 +77,8 @@ export async function resolveVariantIdBySku(sku: string): Promise<number> {
       console.warn(`Mapped variant ID ${variantId} for SKU ${sku} no longer exists, falling back to API lookup`);
     }
   }
-  
+
+  console.log('Mapped variant ID', variantId, 'for SKU', sku);
   // If not found in map or mapped variant invalid, query Shopify API dynamically
   const foundVariantId = await findVariantBySku(sku);
   if (foundVariantId) return foundVariantId;
