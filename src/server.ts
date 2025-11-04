@@ -1,14 +1,15 @@
 import './setupEnv';
 import express from 'express';
 import cors from 'cors';
-import pinoHttp from 'pino-http';
+import pinoHttpModule from 'pino-http';
 import { v4 as uuidv4 } from 'uuid';
 import { router as acpRouter } from './routes/acp.js';
 import { errorHandler } from './utils/errors.js';
 import { rateLimiter } from './middleware/security.js';
 
-// Type assertion for pino-http default export
-const pinoHttpMiddleware = (pinoHttp as unknown as typeof pinoHttp.default) || pinoHttp;
+// Handle pino-http default export (ES modules compatibility)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pinoHttp = ((pinoHttpModule as any).default || pinoHttpModule) as (opts?: any) => express.RequestHandler;
 
 const app = express();
 
@@ -47,7 +48,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '1mb' }));
-app.use(pinoHttpMiddleware({
+app.use(pinoHttp({
   level: process.env.LOG_LEVEL || 'info',
   redact: {
     paths: ['req.headers.authorization', 'req.body.sharedPaymentToken', 'res.body.sharedPaymentToken'],
