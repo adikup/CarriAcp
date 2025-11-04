@@ -7,11 +7,14 @@ import { router as acpRouter } from './routes/acp.js';
 import { errorHandler } from './utils/errors.js';
 import { rateLimiter } from './middleware/security.js';
 
+// Type assertion for pino-http default export
+const pinoHttpMiddleware = (pinoHttp as unknown as typeof pinoHttp.default) || pinoHttp;
+
 const app = express();
 
 // CORS configuration for OpenAI integration
-const corsOptions = {
-  origin: (origin, callback) => {
+const corsOptions: cors.CorsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
       'https://chat.openai.com',
       'https://chatgpt.com',
@@ -44,7 +47,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '1mb' }));
-app.use((pinoHttp as typeof pinoHttp.default || pinoHttp)({
+app.use(pinoHttpMiddleware({
   level: process.env.LOG_LEVEL || 'info',
   redact: {
     paths: ['req.headers.authorization', 'req.body.sharedPaymentToken', 'res.body.sharedPaymentToken'],
