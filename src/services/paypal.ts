@@ -2,7 +2,17 @@ import axios from 'axios';
 import { UpstreamError } from '../utils/errors.js';
 
 function baseUrl() {
-  return process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com';
+  const url = process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com';
+  
+  // Safety check: warn if using sandbox in production
+  if (url.includes('sandbox') && process.env.NODE_ENV === 'production') {
+    // eslint-disable-next-line no-console
+    console.error('⚠️  WARNING: Using PayPal SANDBOX in PRODUCTION!');
+    // eslint-disable-next-line no-console
+    console.error('⚠️  Set PAYPAL_BASE_URL=https://api-m.paypal.com for production');
+  }
+  
+  return url;
 }
 
 async function getAccessToken(): Promise<string> {

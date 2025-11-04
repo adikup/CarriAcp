@@ -66,9 +66,19 @@ export async function resolveVariantIdBySku(sku: string): Promise<number> {
   // First check the manual map
   const map = skuMap();
   const variantId = map[sku];
-  if (variantId) return Number(variantId);
+  if (variantId) {
+    // Validate that the mapped variant still exists
+    try {
+      await getVariant(Number(variantId));
+      return Number(variantId);
+    } catch (e) {
+      // Mapped variant doesn't exist anymore, fallback to API lookup
+      // eslint-disable-next-line no-console
+      console.warn(`Mapped variant ID ${variantId} for SKU ${sku} no longer exists, falling back to API lookup`);
+    }
+  }
   
-  // If not found, query Shopify API dynamically
+  // If not found in map or mapped variant invalid, query Shopify API dynamically
   const foundVariantId = await findVariantBySku(sku);
   if (foundVariantId) return foundVariantId;
   
