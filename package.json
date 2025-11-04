@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "pre-push-check": "bash scripts/pre-push-check.sh",
+    "prebuild": "echo 'Building...'"
   },
   "dependencies": {
     "@types/cors": "^2.8.19",

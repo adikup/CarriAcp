@@ -1,0 +1,48 @@
+#!/bin/sh
+# Pre-push hook to validate builds and check for secrets
+
+echo "🔍 Running pre-push validation..."
+
+# Check 1: Build must succeed
+echo "📦 Building project..."
+npm run build
+if [ $? -ne 0 ]; then
+  echo "❌ Build failed! Fix TypeScript errors before pushing."
+  exit 1
+fi
+echo "✅ Build successful"
+
+# Check 2: Check for secrets in staged files
+echo "🔐 Checking for secrets in staged files..."
+SECRETS_FOUND=0
+
+# Check for Shopify tokens
+if git diff --cached --name-only | xargs grep -l "shpat_[a-zA-Z0-9]\{40\}" 2>/dev/null; then
+  echo "❌ Found Shopify access token in staged files!"
+  SECRETS_FOUND=1
+fi
+
+# Check for PayPal client secrets (long alphanumeric strings)
+if git diff --cached --name-only | xargs grep -l "PAYPAL_CLIENT_SECRET.*[A-Za-z0-9_-]\{32,\}" 2>/dev/null; then
+  echo "❌ Found PayPal client secret in staged files!"
+  SECRETS_FOUND=1
+fi
+
+# Check for actual token values (not placeholders)
+if git diff --cached --name-only | xargs grep -E "shpat_[a-zA-Z0-9]{20,}" 2>/dev/null | grep -v "shpat_xxxxxxxx" | grep -v "shpat_xxxxx"; then
+  echo "❌ Found actual Shopify token (not placeholder) in staged files!"
+  SECRETS_FOUND=1
+fi
+
+if [ $SECRETS_FOUND -eq 1 ]; then
+  echo ""
+  echo "⚠️  SECRETS DETECTED!"
+  echo "Please remove secrets from files before pushing."
+  echo "Use placeholders like: shpat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  exit 1
+fi
+
+echo "✅ No secrets found"
+echo "✅ Pre-push validation passed!"
+exit 0
+
